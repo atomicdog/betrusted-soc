@@ -750,8 +750,8 @@ class BetrustedSoC(SoCCore):
         # self.comb += gpio_pads[2].eq(self.trng_osc.trng_raw)
 
         # AES block --------------------------------------------------------------------------------
-        # self.submodules.aes = Aes(platform)
-        # self.add_csr("aes")
+        self.submodules.aes = Aes(platform)
+        self.add_csr("aes")
 
         ## TODO: audio, wide-width/fast SPINOR
 
