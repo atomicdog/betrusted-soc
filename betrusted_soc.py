@@ -435,7 +435,7 @@ _io_uart_debug_swapped = [
 # Platform -----------------------------------------------------------------------------------------
 
 class Platform(XilinxPlatform):
-    def __init__(self, io, toolchain="vivado", programmer="vivado", part="50", encrypt=False, make_mod=False, bbram=False, strategy='default'):
+    def __init__(self, io, toolchain="vivado", programmer="vivado", part="50", encrypt=False, make_mod=False, strategy='default'):
         part = "xc7s" + part + "-csga324-1il"
         XilinxPlatform.__init__(self, part, io, toolchain=toolchain)
 
@@ -460,18 +460,29 @@ class Platform(XilinxPlatform):
             "set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 1 [current_design]",
         ]
         if encrypt:
-            type = 'eFUSE'
-            if bbram:
-                type = 'BBRAM'
             self.toolchain.bitstream_commands += [
                 "set_property BITSTREAM.ENCRYPTION.ENCRYPT YES [current_design]",
-                "set_property BITSTREAM.ENCRYPTION.ENCRYPTKEYSELECT {} [current_design]".format(type),
+                "set_property BITSTREAM.ENCRYPTION.ENCRYPTKEYSELECT eFuse [current_design]",
                 "set_property BITSTREAM.ENCRYPTION.KEYFILE ../../dummy.nky [current_design]"
             ]
 
-        self.toolchain.additional_commands += \
-            ["write_cfgmem -verbose -force -format bin -interface spix1 -size 64 "
-             "-loadbit \"up 0x0 {build_name}.bit\" -file {build_name}.bin"]
+            self.toolchain.additional_commands += \
+                ["write_cfgmem -verbose -force -format bin -interface spix1 -size 64 "
+                "-loadbit \"up 0x0 {build_name}.bit\" -file {build_name}_efuse.bin"]
+            self.toolchain.additional_commands += \
+            [
+                "set_property BITSTREAM.ENCRYPTION.ENCRYPT YES [current_design]",
+                "set_property BITSTREAM.ENCRYPTION.ENCRYPTKEYSELECT BBRAM [current_design]",
+                "set_property BITSTREAM.ENCRYPTION.KEYFILE ../../dummy.nky [current_design]",
+                "write_bitstream -force {build_name}.bit",
+                "write_cfgmem -verbose -force -format bin -interface spix1 -size 64 "
+                "-loadbit \"up 0x0 {build_name}.bit\" -file {build_name}_bbram.bin"
+            ]
+        else:
+            self.toolchain.additional_commands += \
+                ["write_cfgmem -verbose -force -format bin -interface spix1 -size 64 "
+                "-loadbit \"up 0x0 {build_name}.bit\" -file {build_name}_plain.bin"]
+
         self.programmer = programmer
 
         self.toolchain.additional_commands += [
@@ -1801,9 +1812,6 @@ def main():
         "-u", "--usb-type", choices=['debug', 'device'], help="Select the USB core. Defaults to 'debug'", default='debug', type=str,
     )
     parser.add_argument(
-        "-b", "--bbram", help="encrypt to bbram, not efuse. Defaults to efuse. Only meaningful in -e is also specified.", default=False, action="store_true"
-    )
-    parser.add_argument(
         "-p", "--physical-uart", help="Disable physical UART. Enables console UART tunelling over wishbone-tool, deactivatces physical pins.", default=True, action="store_false"
     )
     parser.add_argument(
@@ -1822,13 +1830,10 @@ def main():
         compile_gateware = False
         compile_software = False
 
-    bbram = False
     if args.encrypt == None:
         encrypt = False
     else:
         encrypt = True
-        if args.bbram:
-            bbram = True
 
     if (args.revision == 'pvt') or (args.revision == 'modnoise') or (args.revision == 'pvt2'):
         io = _io_pvt
@@ -1859,7 +1864,7 @@ def main():
             bios_path = 'loader{}bios.bin'.format(os.path.sep)
         else:
             # do a first-pass to create the soc.svd file
-            platform = Platform(io, encrypt=encrypt, bbram=bbram, strategy=args.strategy)
+            platform = Platform(io, encrypt=encrypt, strategy=args.strategy)
             platform.add_extension(_io_uart_debug_swapped)
             soc = BetrustedSoC(platform, args.revision, xous=args.xous, usb_type=args.usb_type, uart_name=uart_name, bios_path=None)
             builder = Builder(soc, output_dir="build", csr_csv="build/csr.csv", csr_svd="build/software/soc.svd",
@@ -1873,7 +1878,7 @@ def main():
 
     ##### second pass to build the actual chip. Note any changes below need to be reflected into the first pass...might be a good idea to modularize that
     ##### setup platform
-    platform = Platform(io, encrypt=encrypt, bbram=bbram, strategy=args.strategy)
+    platform = Platform(io, encrypt=encrypt, strategy=args.strategy)
     # _io_uart_debug wires debug bridge to Rpi; _io_uart_debug_swapped wires console to Rpi
     platform.add_extension(_io_uart_debug_swapped)
 
@@ -1919,14 +1924,15 @@ mathjax_config = {
             with open('keystore.patch', 'w') as patchfile:
                 subprocess.call([sys.executable, './key2bits.py', '-k../../keystore.bin', '-r../../rom.db'], cwd='deps/rom-locate', stdout=patchfile)
                 keystore_args = '-pkeystore.patch'
-                if bbram:
-                    enc = [sys.executable, 'deps/encrypt-bitstream-python/encrypt-bitstream.py', '--bbram','-fbuild/gateware/betrusted_soc.bin', '-idummy.nky', '-k' + args.encrypt, '-obuild/gateware/encrypted'] + [keystore_args]
-                else:
-                    enc = [sys.executable, 'deps/encrypt-bitstream-python/encrypt-bitstream.py', '-fbuild/gateware/betrusted_soc.bin', '-idummy.nky', '-k' + args.encrypt, '-obuild/gateware/encrypted'] + [keystore_args]
+                enc_bbram = [sys.executable, 'deps/encrypt-bitstream-python/encrypt-bitstream.py', '--bbram','-fbuild/gateware/betrusted_soc_bbram.bin', '-idummy.nky', '-k' + args.encrypt, '-obuild/gateware/encrypted_bbram'] + [keystore_args]
+                enc_efuse = [sys.executable, 'deps/encrypt-bitstream-python/encrypt-bitstream.py', '-fbuild/gateware/betrusted_soc_efuse.bin', '-idummy.nky', '-k' + args.encrypt, '-obuild/gateware/encrypted_efuse'] + [keystore_args]
 
-            subprocess.call(enc)
+            subprocess.call(enc_bbram)
+            subprocess.call(enc_efuse)
 
-            pad = [sys.executable, './append_csr.py', '-bbuild/gateware/encrypted.bin', '-cbuild/csr.csv', '-obuild/gateware/soc_csr.bin']
+            pad = [sys.executable, './append_csr.py', '-bbuild/gateware/encrypted_bbram.bin', '-cbuild/csr.csv', '-obuild/gateware/soc_csr_bbram.bin']
+            subprocess.call(pad)
+            pad = [sys.executable, './append_csr.py', '-bbuild/gateware/encrypted_efuse.bin', '-cbuild/csr.csv', '-obuild/gateware/soc_csr_efuse.bin']
             subprocess.call(pad)
         else:
             print('Specified key file {} does not exist'.format(args.encrypt))
