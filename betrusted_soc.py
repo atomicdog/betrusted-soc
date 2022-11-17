@@ -1048,6 +1048,7 @@ class SusRes(Module, AutoDoc, AutoCSR):
         self.ev.soft_int = EventSourceProcess()
         self.kernel_resume_interrupt = Signal()
         self.comb += self.ev.soft_int.trigger.eq(self.interrupt.fields.interrupt | self.kernel_resume_interrupt)
+        self.ev.finalize()
 
 # Deterministic timeout ---------------------------------------------------------------------------
 
