@@ -1246,7 +1246,6 @@ class BetrustedSoC(SoCCore):
         if puppet == False:
             # the origin is hard-coded because LiteX overrides the mapping at some point.
             self.bus.add_slave("vexriscv_debug", self.cpu.debug_bus, SoCRegion(origin=0xefff0000, size=0x100, cached=False))
-            #self.register_mem("vexriscv_debug", 0xefff0000, self.cpu.debug_bus, 0x100)
 
         # Clockgen cluster -------------------------------------------------------------------------
         self.submodules.crg = CRG(platform, sys_clk_freq, spinor_edge_delay_ns=2.5)
@@ -1421,7 +1420,6 @@ class BetrustedSoC(SoCCore):
         else:
             self.submodules.info = info.Info(platform, self.__class__.__name__, use_xadc=True, analog_pads=analog_pads)
         self.add_csr("info")
-        self.platform.add_platform_command('create_generated_clock -name dna_cnt -source [get_pins {net}_reg[0]/Q] -divide_by 2 [get_pins DNA_PORT/CLK]', net=self.info.dna.count)
 
         # reset ignore - we should not be relying on any _rst signals to clear state in a single cycle!
         self.platform.add_platform_command('set_false_path -through [get_nets *_rst]')
@@ -1439,7 +1437,7 @@ class BetrustedSoC(SoCCore):
         else:
             self.submodules.sram_ext = sram_32_cached.SRAM32(platform.request("sram"), rd_timing=7, wr_timing=7, page_rd_timing=3, l2_cache_size=0x2_0000)
         self.add_csr("sram_ext")
-        self.register_mem("sram_ext", self.mem_map["sram_ext"], self.sram_ext.bus, size=SRAM_EXT_SIZE)
+        self.bus.add_slave(name="sram_ext", slave=self.sram_ext.bus, region=SoCRegion(self.mem_map["sram_ext"], size=SRAM_EXT_SIZE))
         # A bit of a bodge -- the path is actually async, so what we are doing is trying to constrain intra-channel skew by pushing them up against clock limits (PS I'm not even sure this works...)
         self.platform.add_platform_command("set_input_delay -clock [get_clocks sys_clk] -min -add_delay 4.0 [get_ports {{sram_d[*]}}]")
         self.platform.add_platform_command("set_input_delay -clock [get_clocks sys_clk] -max -add_delay 9.0 [get_ports {{sram_d[*]}}]")
@@ -1461,7 +1459,7 @@ class BetrustedSoC(SoCCore):
         self.submodules.memlcd = ClockDomainsRenamer({"sys":"sys_always_on"})(memlcd.MemLCD(platform.request("lcd")))
         self.add_csr("memlcd")
         if cached_lcd:
-            self.register_mem("memlcd", self.mem_map["memlcd"], self.memlcd.bus, size=self.memlcd.fb_depth*4)
+            self.bus.add_slave("memlcd", self.memlcd.bus, SoCRegion(origin=self.mem_map["memlcd"], size=self.memlcd.fb_depth*4, mode="rw", cached=True))
         else:
             self.bus.add_slave("memlcd", self.memlcd.bus, SoCRegion(origin=self.mem_map["memlcd"], size=self.memlcd.fb_depth*4, mode="rw", cached=False))
 
@@ -1570,7 +1568,7 @@ class BetrustedSoC(SoCCore):
             self.add_csr("spinor_soft_int")
             self.add_interrupt("spinor_soft_int")
 
-        self.register_mem("spiflash", self.mem_map["spiflash"], self.spinor.bus, size=SPI_FLASH_SIZE)
+        self.bus.add_slave(name="spiflash", slave=self.spinor.bus, region=SoCRegion(self.mem_map["spiflash"], size=SPI_FLASH_SIZE))
         self.add_csr("spinor")
         self.add_interrupt("spinor")
 
