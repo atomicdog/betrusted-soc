@@ -1420,6 +1420,7 @@ class BetrustedSoC(SoCCore):
             self.submodules.info = info.Info(platform, self.__class__.__name__, use_xadc=False) # xadc is managed by TRNG
         else:
             self.submodules.info = info.Info(platform, self.__class__.__name__, use_xadc=True, analog_pads=analog_pads)
+        self.platform.add_platform_command('create_generated_clock -name dna_cnt -source [get_pins {net}_reg[0]/Q] -divide_by 2 [get_pins DNA_PORT/CLK]', net=self.info.dna.count)
         self.add_csr("info")
 
         # reset ignore - we should not be relying on any _rst signals to clear state in a single cycle!
