@@ -118,7 +118,7 @@ _io_pvt = [   # PVT-generation I/Os
         Subsignal("csn",  Pins("T15"), IOStandard("LVCMOS18"), Misc("SLEW=SLOW"), Misc("DRIVE=4")),
         Subsignal("cipo", Pins("P16"), IOStandard("LVCMOS18")),
         Subsignal("copi", Pins("N18"), IOStandard("LVCMOS18"), Misc("SLEW=SLOW"), Misc("DRIVE=4")),
-        Subsignal("sclk", Pins("R16"), IOStandard("LVCMOS18"), Misc("SLEW=SLOW"), Misc("DRIVE=4")),
+        Subsignal("sclk", Pins("R16"), IOStandard("LVCMOS18"), Misc("SLEW=FAST"), Misc("DRIVE=8")),
         Subsignal("hold", Pins("L13"), IOStandard("LVCMOS18")),
      ),
     ("com_irq", 0, Pins("M16"), IOStandard("LVCMOS18")),
@@ -154,13 +154,12 @@ _io_pvt = [   # PVT-generation I/Os
         IOStandard("LVCMOS18")
     ),
     ("spiflash_8x", 0, # clock needs a separate override to meet timing
-        Subsignal("cs_n", Pins("M13")),
-        Subsignal("dq",   Pins("K17 K18 L14 M15 L17 L18 M14 N14")),
-        Subsignal("dqs",  Pins("R14")),
-        Subsignal("ecs_n", Pins("L16")),
-        Subsignal("sclk", Pins("C12")),  # DVT
+        Subsignal("cs_n", Pins("M13"), Misc("SLEW=SLOW")),
+        Subsignal("dq",   Pins("K17 K18 L14 M15 L17 L18 M14 N14"), Misc("SLEW=SLOW")),
+        Subsignal("dqs",  Pins("R14"), Misc("SLEW=SLOW")),
+        Subsignal("ecs_n", Pins("L16"), Misc("SLEW=SLOW")),
+        Subsignal("sclk", Pins("C12"), Misc("SLEW=FAST")),  # DVT
         IOStandard("LVCMOS18"),
-        Misc("SLEW=SLOW"),
      ),
 
     # SRAM
@@ -1256,8 +1255,7 @@ class BetrustedSoC(SoCCore):
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks lpclk]')
         # 12 always-on/sys paths are async
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks clk12]')
-        self.platform.add_platform_command("set_clock_uncertainty 0.2 [get_clocks sys_clk]")
-        self.platform.add_platform_command("set_clock_uncertainty 0.8 [get_clocks spidqs]")
+        self.platform.add_platform_command("set_clock_uncertainty -hold 0.25 -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
 
         # GPIO module ------------------------------------------------------------------------------
         self.submodules.gpio = BtGpio(platform.request("gpio"), usb_type=usb_type)
@@ -1490,12 +1488,12 @@ class BetrustedSoC(SoCCore):
             #   measurement shows 14.1ns Tc-q using SB_IO primitive on UP5K. Set to 15ns for some safety margin.
             #   measurement shows 21.8ns Tc-q using fabric SB_DFFS to pad on UP5K. This may not be robust at 20MHz.
             # min-delay is minimum Tck-q of EC: how fast can data change relative to spi_clk edge inside FPGA
-            self.platform.add_platform_command("set_input_delay -clock [get_clocks spi_clk] -min -add_delay 0.0 [get_ports {{com_cipo}}] -clock_fall")
+            self.platform.add_platform_command("set_input_delay -clock_fall -clock [get_clocks spi_clk] -min -add_delay 5.0 [get_ports {{com_cipo}}]")
             # max-delay is maximum Tck-q of EC: what's the longest it can take for data to settle relative to sp_clk edge inside FPGA
-            self.platform.add_platform_command("set_input_delay -clock [get_clocks spi_clk] -max -add_delay 16.0 [get_ports {{com_cipo}}] -clock_fall")
+            self.platform.add_platform_command("set_input_delay -clock_fall -clock [get_clocks spi_clk] -max -add_delay 16.0 [get_ports {{com_cipo}}]")
             self.platform.add_platform_command("set_output_delay -clock [get_clocks spi_clk] -min -add_delay 1.0 [get_ports {{com_copi com_csn}}] -clock_fall") # UP5K input hold = 5.55
             self.platform.add_platform_command("set_output_delay -clock [get_clocks spi_clk] -max -add_delay 4.0 [get_ports {{com_copi com_csn}}] -clock_fall") # UP5K input setup = -0.5; so could set to -0.5, but we can hit 10...
-            self.platform.add_platform_command("set_clock_uncertainty 1.0 [get_clocks spi_clk]")
+            self.platform.add_platform_command("set_clock_uncertainty 1.5 [get_clocks spi_clk]")
             # cross domain clocking is handled with explicit software barriers, or with multiregs
             self.platform.add_false_path_constraints(self.crg.cd_sys.clk, self.crg.cd_spi.clk)
             self.platform.add_false_path_constraints(self.crg.cd_spi.clk, self.crg.cd_sys.clk)
@@ -1937,6 +1935,8 @@ class BetrustedSoC(SoCCore):
         if use_perfcounter:
             self.submodules.perfcounter = perfcounter.PerfCounter(self)
             self.add_csr("perfcounter")
+
+        self.platform.add_platform_command("set_clock_uncertainty 0.8 [get_clocks spidqs]")
 
 # Build --------------------------------------------------------------------------------------------
 
