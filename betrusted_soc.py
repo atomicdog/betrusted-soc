@@ -1256,6 +1256,8 @@ class BetrustedSoC(SoCCore):
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks lpclk]')
         # 12 always-on/sys paths are async
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks clk12]')
+        self.platform.add_platform_command("set_clock_uncertainty 0.2 [get_clocks sys_clk]")
+        self.platform.add_platform_command("set_clock_uncertainty 0.8 [get_clocks spidqs]")
 
         # GPIO module ------------------------------------------------------------------------------
         self.submodules.gpio = BtGpio(platform.request("gpio"), usb_type=usb_type)
@@ -1483,17 +1485,18 @@ class BetrustedSoC(SoCCore):
             self.submodules.com = spi.SPIController(platform.request("com"), pipeline_cipo=True)
             self.add_csr("com")
             self.add_interrupt("com")
-            # slow down clock period of SPI to 20MHz, this gives us about a 4ns margin for setup for PVT variation
+            # slow down clock period of SPI to 20MHz (50ns period), this gives us about a 4ns margin for setup for PVT variation
             #   datasheet claims 10.0ns Tc-q max input delay
             #   measurement shows 14.1ns Tc-q using SB_IO primitive on UP5K. Set to 15ns for some safety margin.
             #   measurement shows 21.8ns Tc-q using fabric SB_DFFS to pad on UP5K. This may not be robust at 20MHz.
             # min-delay is minimum Tck-q of EC: how fast can data change relative to spi_clk edge inside FPGA
-            self.platform.add_platform_command("set_input_delay -clock [get_clocks spi_clk] -min -add_delay 14.1 [get_ports {{com_cipo}}]")
+            self.platform.add_platform_command("set_input_delay -clock [get_clocks spi_clk] -min -add_delay 0.0 [get_ports {{com_cipo}}] -clock_fall")
             # max-delay is maximum Tck-q of EC: what's the longest it can take for data to settle relative to sp_clk edge inside FPGA
-            self.platform.add_platform_command("set_input_delay -clock [get_clocks spi_clk] -max -add_delay 21.8 [get_ports {{com_cipo}}]")
-            self.platform.add_platform_command("set_output_delay -clock [get_clocks spi_clk] -min -add_delay 5.55 [get_ports {{com_copi com_csn}}]") # UP5K input hold = 5.55
-            self.platform.add_platform_command("set_output_delay -clock [get_clocks spi_clk] -max -add_delay 10.0 [get_ports {{com_copi com_csn}}]") # UP5K input setup = -0.5; so could set to -0.5, but we can hit 10...
-            # cross domain clocking is handled with explicit software barrires, or with multiregs
+            self.platform.add_platform_command("set_input_delay -clock [get_clocks spi_clk] -max -add_delay 16.0 [get_ports {{com_cipo}}] -clock_fall")
+            self.platform.add_platform_command("set_output_delay -clock [get_clocks spi_clk] -min -add_delay 1.0 [get_ports {{com_copi com_csn}}] -clock_fall") # UP5K input hold = 5.55
+            self.platform.add_platform_command("set_output_delay -clock [get_clocks spi_clk] -max -add_delay 4.0 [get_ports {{com_copi com_csn}}] -clock_fall") # UP5K input setup = -0.5; so could set to -0.5, but we can hit 10...
+            self.platform.add_platform_command("set_clock_uncertainty 1.0 [get_clocks spi_clk]")
+            # cross domain clocking is handled with explicit software barriers, or with multiregs
             self.platform.add_false_path_constraints(self.crg.cd_sys.clk, self.crg.cd_spi.clk)
             self.platform.add_false_path_constraints(self.crg.cd_spi.clk, self.crg.cd_sys.clk)
 
@@ -2119,3 +2122,18 @@ if __name__ == "__main__":
     print("Run completed in {}".format(datetime.now()-start))
 
     sys.exit(ret)
+
+"""
+https://www.01signal.com/constraints/timing/sdc-input-output-delay/
+
+    set_input_delay -clock … -max … : The maximal clock-to-output of the component that drives the signal + the board's trace delay.
+    set_input_delay -clock … -min … : The minimal clock-to-output of the component that drives the signal. If the datasheet doesn't give this information, choose zero (just in case a future revision of this component will be manufactured with a really fast process).
+    set_output_delay -clock … -max … : The tsetup of the component that receives the signal + the board's trace delay.
+    set_output_delay -clock … -min … : –thold of the receiving chip. Note the minus sign. For example, set this constraint to -1 if the hold time is 1 ns.
+
+The definitions are confusing: set_input_delay defines the allowed range of delays of the
+data toggle after a clock, but set_output_delay defines the range of delays of the clock
+after a data toggle. Presumably, the rationale behind these definitions is that they make
+it possible to copy number from the datasheets of the external components, and use these
+numbers directly with these constraints.
+"""
