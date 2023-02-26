@@ -1322,7 +1322,8 @@ class BetrustedSoC(SoCCore):
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks lpclk]')
         # 12 always-on/sys paths are async
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks clk12]')
-        self.platform.add_platform_command("set_clock_uncertainty -hold 0.25 -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
+        self.platform.add_platform_command("set_clock_uncertainty 0.25 -hold -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
+        self.platform.add_platform_command("set_clock_uncertainty 0.7 -setup -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
 
         # GPIO module ------------------------------------------------------------------------------
         self.submodules.gpio = BtGpio(platform.request("gpio"), usb_type=usb_type)
@@ -1510,9 +1511,9 @@ class BetrustedSoC(SoCCore):
         self.bus.add_slave(name="sram_ext", slave=self.sram_ext.bus, region=SoCRegion(self.mem_map["sram_ext"], size=SRAM_EXT_SIZE))
         # A bit of a bodge -- the path is actually async, so what we are doing is trying to constrain intra-channel skew by pushing them up against clock limits (PS I'm not even sure this works...)
         self.platform.add_platform_command("set_input_delay -clock [get_clocks sys_clk] -min -add_delay 4.0 [get_ports {{sram_d[*]}}]")
-        self.platform.add_platform_command("set_input_delay -clock [get_clocks sys_clk] -max -add_delay 9.0 [get_ports {{sram_d[*]}}]")
+        self.platform.add_platform_command("set_input_delay -clock [get_clocks sys_clk] -max -add_delay 8.0 [get_ports {{sram_d[*]}}]")
         self.platform.add_platform_command("set_output_delay -clock [get_clocks sys_clk] -min -add_delay 0.0 [get_ports {{sram_adr[*] sram_d[*] sram_ce_n sram_oe_n sram_we_n sram_zz_n sram_dm_n[*]}}]")
-        self.platform.add_platform_command("set_output_delay -clock [get_clocks sys_clk] -max -add_delay 3.0 [get_ports {{sram_adr[*] sram_d[*] sram_ce_n sram_oe_n sram_we_n sram_zz_n sram_dm_n[*]}}]")
+        self.platform.add_platform_command("set_output_delay -clock [get_clocks sys_clk] -max -add_delay 2.0 [get_ports {{sram_adr[*] sram_d[*] sram_ce_n sram_oe_n sram_we_n sram_zz_n sram_dm_n[*]}}]")
         # ODDR falling edge ignore
         self.platform.add_platform_command("set_false_path -fall_from [get_clocks sys_clk] -through [get_ports {{sram_d[*] sram_adr[*] sram_ce_n sram_oe_n sram_we_n sram_zz_n sram_dm_n[*]}}]")
         self.platform.add_platform_command("set_false_path -fall_to [get_clocks sys_clk] -through [get_ports {{sram_d[*]}}]")
