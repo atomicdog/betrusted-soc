@@ -585,7 +585,7 @@ class CRG(Module, AutoCSR):
             gated_replicas={self.cd_sys_crypto : (mmcm.locked & (~self.power_down | self.crypto_on)), self.cd_sys_always_on : mmcm.locked})
         platform.add_platform_command("create_generated_clock -name sys_clk [get_pins MMCME2_ADV/CLKOUT6]")
 
-        mmcm.expose_drp()
+        # mmcm.expose_drp() # the DRP isn't used, so don't expose it
 
         # timing to the "S" pins is not sensitive because we don't care if there is an extra clock pulse relative
         # to the gating. Glitch-free operation is guaranteed regardless!
