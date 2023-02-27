@@ -1177,7 +1177,7 @@ class BetrustedSoC(SoCCore):
             integrated_rom_size  = 0,    # don't use default ROM
             integrated_rom_init  = None, # bios_path,
             integrated_sram_size = 0,    # Use external SRAM for boot code
-            ident                = "Precursor SoC " + revision,
+            ident                = "", # Was :"Precursor SoC " + revision, but not used by firmware so eliminated
             cpu_type             = "vexriscv",
             csr_paging           = 4096,  # increase paging to 1 page size
             csr_address_width    = 16,    # increase to accommodate larger page size
@@ -1197,11 +1197,11 @@ class BetrustedSoC(SoCCore):
         self.csr.locs = {
             'reboot': 0,
             'timer0': 1,
-            'crg': 2,
+            # 'crg': 2,
             'gpio': 3,
-            'uart_phy': 4,
+            # 'uart_phy': 4,
             'uart': 5,
-            'console_phy': 6,
+            # 'console_phy': 6,
             'console': 7,
             #'app_uart_phy': 8,
             #'app_uart': 9,
@@ -1233,6 +1233,7 @@ class BetrustedSoC(SoCCore):
             'usbdev': 35,
             'd11ctime': 36,
             'wfi': 37,
+            'identifier': 38,
             # 'sha2': 39,
         }
         if use_perfcounter:
@@ -1316,7 +1317,7 @@ class BetrustedSoC(SoCCore):
 
         # Clockgen cluster -------------------------------------------------------------------------
         self.submodules.crg = CRG(platform, sys_clk_freq, spinor_edge_delay_ns=2.5)
-        self.add_csr("crg", use_loc_if_exists=True)
+        # self.add_csr("crg", use_loc_if_exists=True) # this isn't used by Xous, so don't export it to save on registers.
         self.comb += self.crg.warm_reset.eq(warm_reset) # mirror signal here to hit the Async reset injectors
         # lpclk/sys paths are async
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks lpclk]')
@@ -1345,61 +1346,42 @@ class BetrustedSoC(SoCCore):
 
         elif uart_name == "serial":
             serial_layout = [("tx", 1), ("rx", 1)]
-            kernel_pads = Record(serial_layout)
-            console_pads = Record(serial_layout)
-            # app_uart_pads = Record(serial_layout)
-            self.comb += [
-                If(self.gpio.uartsel.storage == 0,
-                    uart_pins.tx.eq(kernel_pads.tx),
-                    kernel_pads.rx.eq(uart_pins.rx),
-                ).Else(# self.gpio.uartsel.storage == 1,
-                    uart_pins.tx.eq(console_pads.tx),
-                    console_pads.rx.eq(uart_pins.rx),
-                )
-                # .Else(
-                #     uart_pins.tx.eq(app_uart_pads.tx),
-                #     app_uart_pads.rx.eq(uart_pins.rx),
-                # )
-            ]
+
             self.submodules.uart_phy = ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UARTPHY(
-                pads=kernel_pads,
+                pads=uart_pins,
                 clk_freq=sys_clk_freq,
                 baudrate=115200))
+
+            uart_phy_model = uart.RS232PHYInterface()
+            console_phy_model = uart.RS232PHYInterface()
+            app_phy_model = uart.RS232PHYInterface()
+            self.submodules.uart_mux = uart.RS232PHYMultiplexer(
+                [uart_phy_model, console_phy_model, app_phy_model], self.uart_phy)
+            self.comb += [
+                self.uart_mux.sel.eq(self.gpio.uartsel.storage),
+            ]
+
             self.submodules.uart = ResetInserter()(
-                ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(self.uart_phy,
+                ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(uart_phy_model,
                     tx_fifo_depth=16, rx_fifo_depth=16)
                 ))
-
-            self.add_csr("uart_phy", use_loc_if_exists=True)
             self.add_csr("uart", use_loc_if_exists=True)
             self.add_interrupt("uart", use_loc_if_exists=True)
 
-            self.submodules.console_phy = ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UARTPHY(
-                pads=console_pads,
-                clk_freq=sys_clk_freq,
-                baudrate=115200))
             self.submodules.console = ResetInserter()(
-                ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(self.console_phy,
+                ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(console_phy_model,
                     tx_fifo_depth=16, rx_fifo_depth=16)
                 ))
-
-            self.add_csr("console_phy", use_loc_if_exists=True)
             self.add_csr("console", use_loc_if_exists=True)
             self.add_interrupt("console", use_loc_if_exists=True)
 
-            # extra PHY for "application" uses -- mainly things like the FCC testing agent
-            # self.submodules.app_uart_phy = uart.UARTPHY(
-            #     pads=app_uart_pads,
-            #     clk_freq=sys_clk_freq,
-            #     baudrate=115200)
-            # self.submodules.app_uart = ResetInserter()(
-            #     ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(self.app_uart_phy,
-            #         tx_fifo_depth=16, rx_fifo_depth=16)
-            #     ))
-
-            # self.add_csr("app_uart_phy", use_loc_if_exists=True)
-            # self.add_csr("app_uart", use_loc_if_exists=True)
-            # self.add_interrupt("app_uart", use_loc_if_exists=True)
+            # extra PHY for "application" uses -- used by GDB
+            self.submodules.app_uart = ResetInserter()(
+                ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(app_phy_model,
+                    tx_fifo_depth=16, rx_fifo_depth=16)
+                ))
+            self.add_csr("app_uart", use_loc_if_exists=True)
+            self.add_interrupt("app_uart", use_loc_if_exists=True)
 
 
         # XADC analog interface---------------------------------------------------------------------
