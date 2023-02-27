@@ -1204,7 +1204,7 @@ class BetrustedSoC(SoCCore):
             # 'console_phy': 6,
             'console': 7,
             #'app_uart_phy': 8,
-            #'app_uart': 9,
+            'app_uart': 9,
             'info': 10,
             'sram_ext': 11,
             'memlcd': 12,
@@ -1243,7 +1243,7 @@ class BetrustedSoC(SoCCore):
             'gpio': 1,
             'uart': 2,
             'console': 3,
-            # 'app_uart': 4,
+            'app_uart': 4,
             'com': 5,
             'i2c': 6,
             'btevents': 7,
@@ -1988,8 +1988,11 @@ class BetrustedSoC(SoCCore):
             self.add_csr("perfcounter", use_loc_if_exists=True)
 
         self.platform.add_platform_command("set_clock_uncertainty 0.8 [get_clocks spidqs]")
-        print(self.irq.locs)
-        print(self.csr.locs)
+
+        # For debugging fixed locations
+        # print(self.irq.locs)
+        # print(self.csr.locs)
+
 # Build --------------------------------------------------------------------------------------------
 
 def main():
