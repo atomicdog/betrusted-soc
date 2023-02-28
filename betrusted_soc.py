@@ -476,7 +476,9 @@ class Platform(XilinxPlatform):
         self.programmer = programmer
 
         self.toolchain.additional_commands += [
-            "report_timing -delay_type min_max -max_paths 100 -slack_less_than 0 -sort_by group -input_pins -routable_nets -name failures -file timing-failures.txt"
+            "create_slack_histogram -delay_type max -num_bins 100 -to [get_clocks -of_objects [get_pins MMCME2_ADV/CLKOUT6]] -significant_digits 3 -file histo_max.txt",
+            "create_slack_histogram -delay_type min -num_bins 100 -to [get_clocks -of_objects [get_pins MMCME2_ADV/CLKOUT6]] -significant_digits 3 -file histo_min.txt",
+            "report_timing -delay_type min_max -max_paths 100 -slack_less_than 0 -sort_by group -input_pins -routable_nets -name failures -file timing-failures.txt",
         ]
         # this routine retained in case we have to re-explore the bitstream to find the location of the ROM LUTs
         if make_mod:
