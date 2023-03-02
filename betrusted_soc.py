@@ -1209,7 +1209,7 @@ class BetrustedSoC(SoCCore):
             #'app_uart_phy': 8,
             'app_uart': 9,
             'info': 10,
-            'sram_ext': 11,
+            # 'sram_ext': 11,
             'memlcd': 12,
             'com': 13,
             'i2c': 14,
@@ -1236,7 +1236,7 @@ class BetrustedSoC(SoCCore):
             'usbdev': 35,
             'd11ctime': 36,
             'wfi': 37,
-            'identifier': 38,
+            # 'identifier': 38,
             # 'sha2': 39,
         }
         if use_perfcounter:
@@ -1489,10 +1489,10 @@ class BetrustedSoC(SoCCore):
         # Cache fill time is ~320ns for 8 words.
         if usb_type == 'spinal':
             # smaller cache to reduce resource utilization
-            self.submodules.sram_ext = sram_32_cached.SRAM32(platform.request("sram"), rd_timing=7, wr_timing=7, page_rd_timing=3, l2_cache_size=0x1_0000)
+            self.submodules.sram_ext = sram_32_cached.SRAM32(platform.request("sram"), rd_timing=7, wr_timing=7, page_rd_timing=3, l2_cache_size=0x1_0000, expose_csr=False)
         else:
-            self.submodules.sram_ext = sram_32_cached.SRAM32(platform.request("sram"), rd_timing=7, wr_timing=7, page_rd_timing=3, l2_cache_size=0x2_0000)
-        self.add_csr("sram_ext", use_loc_if_exists=True)
+            self.submodules.sram_ext = sram_32_cached.SRAM32(platform.request("sram"), rd_timing=7, wr_timing=7, page_rd_timing=3, l2_cache_size=0x2_0000, expose_csr=False)
+        # self.add_csr("sram_ext", use_loc_if_exists=True)
         self.bus.add_slave(name="sram_ext", slave=self.sram_ext.bus, region=SoCRegion(self.mem_map["sram_ext"], size=SRAM_EXT_SIZE))
         # A bit of a bodge -- the path is actually async, so what we are doing is trying to constrain intra-channel skew by pushing them up against clock limits (PS I'm not even sure this works...)
         self.platform.add_platform_command("set_input_delay -clock [get_clocks sys_clk] -min -add_delay 4.0 [get_ports {{sram_d[*]}}]")
