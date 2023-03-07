@@ -441,8 +441,12 @@ class Platform(XilinxPlatform):
         XilinxPlatform.__init__(self, part, io, toolchain=toolchain)
 
         if strategy != 'default':
-            self.toolchain.vivado_route_directive = strategy
-            self.toolchain.vivado_post_route_phys_opt_directive = "Explore"  # always explore if we're in a non-default strategy
+            self.toolchain.vivado_synth_directive               = "PerformanceOptimized"
+            self.toolchain.opt_directive                        = "ExploreWithRemap"
+            self.toolchain.vivado_place_directive               = "ExtraTimingOpt" # consider ExtraNetDelay_high and eliminating additional clock pessimism
+            self.toolchain.vivado_post_place_phys_opt_directive = "Explore"
+            self.toolchain.vivado_route_directive               = "AggressiveExplore"
+            self.toolchain.vivado_post_route_phys_opt_directive = "Explore"
 
         # NOTE: to do quad-SPI mode, the QE bit has to be set in the SPINOR status register. OpenOCD
         # won't do this natively, have to find a work-around (like using iMPACT to set it once)
@@ -1157,7 +1161,7 @@ class BetrustedSoC(SoCCore):
 
     def __init__(self, platform, revision, sys_clk_freq=int(100e6), legacy_spi=False,
                  xous=False, usb_type='debug', uart_name="crossover", bios_path='boot/boot.bin',
-                 puppet=False, use_perfcounter=False,
+                 puppet=False, use_perfcounter=False, app_uart=False,
                  **kwargs):
         assert sys_clk_freq in [int(12e6), int(100e6)]
         global bios_size
@@ -1207,7 +1211,7 @@ class BetrustedSoC(SoCCore):
             # 'console_phy': 6,
             'console': 7,
             #'app_uart_phy': 8,
-            'app_uart': 9,
+            #'app_uart': 9,
             'info': 10,
             # 'sram_ext': 11,
             'memlcd': 12,
@@ -1246,7 +1250,7 @@ class BetrustedSoC(SoCCore):
             'gpio': 1,
             'uart': 2,
             'console': 3,
-            'app_uart': 4,
+            #'app_uart': 4,
             'com': 5,
             'i2c': 6,
             'btevents': 7,
@@ -1263,6 +1267,9 @@ class BetrustedSoC(SoCCore):
             'engine': 18,
             'usbdev': 19
         }
+        if app_uart:
+            self.csr.locs['app_uart'] = 9
+            self.irq.locs['app_uart'] = 4
 
         # CPU --------------------------------------------------------------------------------------
         self.cpu.use_external_variant("deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv_BetrustedSoC_Debug.v")
@@ -1327,7 +1334,7 @@ class BetrustedSoC(SoCCore):
         # 12 always-on/sys paths are async
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks clk12]')
         self.platform.add_platform_command("set_clock_uncertainty 0.25 -hold -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
-        self.platform.add_platform_command("set_clock_uncertainty 0.7 -setup -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
+        self.platform.add_platform_command("set_clock_uncertainty 0.65 -setup -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
 
         # GPIO module ------------------------------------------------------------------------------
         self.submodules.gpio = BtGpio(platform.request("gpio"), usb_type=usb_type)
@@ -1357,9 +1364,12 @@ class BetrustedSoC(SoCCore):
 
             uart_phy_model = uart.RS232PHYInterface()
             console_phy_model = uart.RS232PHYInterface()
-            app_phy_model = uart.RS232PHYInterface()
+            phy_models = [uart_phy_model, console_phy_model]
+            if app_uart:
+                app_phy_model = uart.RS232PHYInterface()
+                phy_models += [app_phy_model]
             self.submodules.uart_mux = uart.RS232PHYMultiplexer(
-                [uart_phy_model, console_phy_model, app_phy_model], self.uart_phy)
+                phy_models, self.uart_phy)
             self.comb += [
                 self.uart_mux.sel.eq(self.gpio.uartsel.storage),
             ]
@@ -1379,12 +1389,13 @@ class BetrustedSoC(SoCCore):
             self.add_interrupt("console", use_loc_if_exists=True)
 
             # extra PHY for "application" uses -- used by GDB
-            self.submodules.app_uart = ResetInserter()(
-                ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(app_phy_model,
-                    tx_fifo_depth=16, rx_fifo_depth=16)
-                ))
-            self.add_csr("app_uart", use_loc_if_exists=True)
-            self.add_interrupt("app_uart", use_loc_if_exists=True)
+            if app_uart:
+                self.submodules.app_uart = ResetInserter()(
+                    ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(app_phy_model,
+                        tx_fifo_depth=16, rx_fifo_depth=16)
+                    ))
+                self.add_csr("app_uart", use_loc_if_exists=True)
+                self.add_interrupt("app_uart", use_loc_if_exists=True)
 
 
         # XADC analog interface---------------------------------------------------------------------
@@ -1990,7 +2001,7 @@ class BetrustedSoC(SoCCore):
             self.submodules.perfcounter = perfcounter.PerfCounter(self)
             self.add_csr("perfcounter", use_loc_if_exists=True)
 
-        self.platform.add_platform_command("set_clock_uncertainty 0.8 [get_clocks spidqs]")
+        self.platform.add_platform_command("set_clock_uncertainty 0.7 [get_clocks spidqs]")
 
         # For debugging fixed locations
         # print(self.irq.locs)
@@ -2039,6 +2050,9 @@ def main():
     )
     parser.add_argument(
         "--simple-boot", help="Fall back to the simple, unsigned bootloader", default=False, action="store_true",
+    )
+    parser.add_argument(
+        "--app-uart", help="Instantiate an extra UART for app and GDB use", default=False, action="store_true",
     )
 
     ##### extract user arguments
@@ -2089,7 +2103,7 @@ def main():
             # do a first-pass to create the soc.svd file
             platform = Platform(io, encrypt=encrypt, bbram=bbram, strategy=args.strategy)
             platform.add_extension(_io_uart_debug_swapped)
-            soc = BetrustedSoC(platform, args.revision, xous=args.xous, usb_type=args.usb_type, uart_name=uart_name, bios_path=None)
+            soc = BetrustedSoC(platform, args.revision, xous=args.xous, usb_type=args.usb_type, uart_name=uart_name, bios_path=None, app_uart=args.app_uart)
             builder = Builder(soc, output_dir="build", csr_csv="build/csr.csv", csr_svd="build/software/soc.svd",
                 compile_software=False, compile_gateware=False)
             builder.software_packages=[] # necessary to bypass Meson dependency checks required by Litex libc
@@ -2116,6 +2130,7 @@ def main():
         bios_path=bios_path,
         puppet=args.puppet,
         use_perfcounter=args.perfcounter,
+        app_uart=args.app_uart,
     )
 
     ##### setup the builder and run it
