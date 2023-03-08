@@ -443,7 +443,7 @@ class Platform(XilinxPlatform):
         if strategy != 'default':
             self.toolchain.vivado_synth_directive               = "PerformanceOptimized"
             self.toolchain.opt_directive                        = "ExploreWithRemap"
-            self.toolchain.vivado_place_directive               = "ExtraTimingOpt" # consider ExtraNetDelay_high and eliminating additional clock pessimism
+            self.toolchain.vivado_place_directive               = "ExtraNetDelay_high" # ExtraTimingOpt
             self.toolchain.vivado_post_place_phys_opt_directive = "Explore"
             self.toolchain.vivado_route_directive               = "AggressiveExplore"
             self.toolchain.vivado_post_route_phys_opt_directive = "Explore"
