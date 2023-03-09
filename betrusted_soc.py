@@ -638,6 +638,7 @@ class WarmBoot(Module, AutoCSR):
         self.soc_reset = CSRStorage(size=8, description="Writing 0xAC to this register will do a full SoC reset, including CRGs and peripherals")
         self.addr = CSRStorage(size=32, reset=reset_vector, description="The address written here will be used as the next reset vector")
         self.cpu_reset = CSRStorage(size=1, description="Writing anything to this register resets the CPU, and the CPU only; does not affect CRG or peripherals")
+        self.cpu_hold_reset = CSRStorage(size = 1, description="This bit is wired directly to the CPU's reset line. Thus, when set, the CPU stays in reset until it is cleared. This is intended to be used by external bus masters via USB to hold the CPU in reset.")
         self.do_reset = Signal()
         # "Reset Key" is 0xac (0b101011xx)
         self.comb += self.do_reset.eq((self.soc_reset.storage & 0xfc) == 0xac)
@@ -1284,6 +1285,7 @@ class BetrustedSoC(SoCCore):
         reset_cycles = 32
         cpu_res_ctr = Signal(log2_int(reset_cycles), reset=reset_cycles - 1)
         cpu_reset = Signal(reset=1)
+        reset_hold = Signal()
         self.sync += [
             If(self.reboot.cpu_reset.re,
                 cpu_reset.eq(1),
@@ -1293,11 +1295,12 @@ class BetrustedSoC(SoCCore):
             ).Else(
                 cpu_reset.eq(0)
             ),
+            reset_hold.eq(self.reboot.cpu_hold_reset.storage),
         ]
         if puppet:
             self.comb += self.cpu.reset.eq(1)
         else:
-            self.comb += self.cpu.reset.eq(cpu_reset)
+            self.sync += self.cpu.reset.eq(cpu_reset | reset_hold)
         # make a custom version of the timer0 core that's in the "always on" domain
         self.submodules.timer0 = ClockDomainsRenamer(cd_remapping={"always_on":"raw_12"})(TimerAlwaysOn())
         self.add_csr("timer0", use_loc_if_exists=True)
@@ -1822,7 +1825,7 @@ class BetrustedSoC(SoCCore):
                 # directly into this location, because we set 4k pages between each CSR (and nobody else does this in the LiteX ecosystem,
                 # so it's a corner case that nobody else hits).
                 # what it should be but is wrong --> (self.mem_map['vexriscv_debug'], self.mem_map['vexriscv_debug'] + 0x4), # for resetting/halting the CPU ONLY; block other addresses so JTAG debug doesn't work.
-                (0xefff0000, 0xefff0000 + 0x4), # what we actually have
+                # (0xefff0000, 0xefff0000 + 0x4), # what we actually have (now removed, because the debug block is not present)
                 (self.mem_map['spiflash'] + 0x27_7000, self.mem_map['spiflash'] + 0x28_0000), # readout of the CSR spec in the gateware region
                 (self.mem_map['spiflash'] + 0x50_0000, self.mem_map['spiflash'] + 0x800_0000), # loader through rest of FLASH - should be encrypted/secured by gateware and/or not confidential
             ]
