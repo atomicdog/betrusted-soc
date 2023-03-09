@@ -2039,7 +2039,7 @@ def main():
         "-p", "--physical-uart", help="Disable physical UART. Enables console UART tunelling over wishbone-tool, deactivatces physical pins.", default=True, action="store_false"
     )
     parser.add_argument(
-        "-s", "--strategy", choices=['Explore', 'default', 'NoTimingRelaxation', 'AggressiveExplore'], help="Pick the routing strategy. Defaults to NoTimingRelaxation.", default='NoTimingRelaxation', type=str
+        "-s", "--strategy", choices=['Explore', 'default'], help="Pick the routing strategy. Defaults to 'default'.", default='default', type=str
     )
     parser.add_argument(
         "-c", "--perfcounter", default=False, help="Build with the performance counter module.", action="store_true",
