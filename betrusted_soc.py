@@ -1272,8 +1272,7 @@ class BetrustedSoC(SoCCore):
             self.irq.locs['app_uart'] = 4
 
         # CPU --------------------------------------------------------------------------------------
-        self.cpu.use_external_variant("deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv_BetrustedSoC_Debug.v")
-        self.cpu.add_debug()
+        self.cpu.use_external_variant("deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv_BetrustedSoC.v")
         self.submodules.reboot = WarmBoot(self, reset_address)
         self.add_csr("reboot", use_loc_if_exists=True)
         warm_reset = Signal()
@@ -1321,9 +1320,6 @@ class BetrustedSoC(SoCCore):
            from litex.soc.cores.uart import UARTWishboneBridge
            self.submodules.uart_bridge = UARTWishboneBridge(platform.request("debug"), sys_clk_freq, baudrate=115200)
            self.add_wb_master(self.uart_bridge.wishbone)
-        if puppet == False:
-            # the origin is hard-coded because LiteX overrides the mapping at some point.
-            self.bus.add_slave("vexriscv_debug", self.cpu.debug_bus, SoCRegion(origin=0xefff0000, size=0x100, cached=False))
 
         # Clockgen cluster -------------------------------------------------------------------------
         self.submodules.crg = CRG(platform, sys_clk_freq, spinor_edge_delay_ns=2.5)
