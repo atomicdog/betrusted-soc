@@ -1332,8 +1332,9 @@ class BetrustedSoC(SoCCore):
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks lpclk]')
         # 12 always-on/sys paths are async
         self.platform.add_platform_command('set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks clk12]')
-        self.platform.add_platform_command("set_clock_uncertainty 0.12 -hold -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
-        self.platform.add_platform_command("set_clock_uncertainty 0.35 -setup -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
+        # Add a tiny bit of margin to help with noise, process variation across chip generations (seems to help...)
+        self.platform.add_platform_command("set_clock_uncertainty 0.08 -hold -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
+        self.platform.add_platform_command("set_clock_uncertainty 0.20 -setup -from [get_clocks sys_clk] -to [get_clocks sys_clk]")
 
         # GPIO module ------------------------------------------------------------------------------
         self.submodules.gpio = BtGpio(platform.request("gpio"), usb_type=usb_type)
