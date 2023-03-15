@@ -1627,11 +1627,9 @@ class BetrustedSoC(SoCCore):
             cipo_instance_name="CIPO_FDRE"
             spiread=False
             spipads = platform.request("spiflash_8x")
-            self.submodules.spinor = ClockDomainsRenamer({"sys":"sys_always_on"})(
-                S7SPIOPI(spipads,
+            self.submodules.spinor = S7SPIOPI(spipads,
                     sclk_name=sclk_instance_name, iddr_name=iddr_instance_name,
                     cipo_name=cipo_instance_name, spiread=spiread)
-            )
             self.spinor.add_timing_constraints(platform, "spiflash_8x")
             self.specials += MultiReg(warm_reset, self.spinor.gsr)
             self.comb += self.spinor.keyclearb.eq(~self.power.power.fields.selfdestruct),
