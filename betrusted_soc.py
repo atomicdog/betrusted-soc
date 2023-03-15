@@ -1564,7 +1564,8 @@ class BetrustedSoC(SoCCore):
             self.platform.add_false_path_constraints(self.crg.cd_spi.clk, self.crg.cd_sys.clk)
 
         # I2C interface ----------------------------------------------------------------------------
-        self.submodules.i2c = i2c.RTLI2C(platform, platform.request("i2c", 0))
+        self.submodules.i2c = ClockDomainsRenamer({"sys":"sys_always_on"})(i2c.RTLI2C(platform, platform.request("i2c", 0)))
+        self.comb += self.i2c.filter_clk.eq(self.crg.cd_clk50_always_on.clk) # slower clock for de-metastabilizing the slow/jitter edges of I2C
         self.add_csr("i2c", use_loc_if_exists=True)
         self.add_interrupt("i2c", use_loc_if_exists=True)
 
