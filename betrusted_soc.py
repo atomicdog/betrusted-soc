@@ -1545,7 +1545,8 @@ class BetrustedSoC(SoCCore):
            )
            self.add_wb_master(self.puppet_bridge.wishbone)
         else:
-            self.submodules.com = spi.SPIController(platform.request("com"), pipeline_cipo=True)
+            self.submodules.com = ClockDomainsRenamer({"sys":"sys_always_on"})(
+                spi.SPIController(platform.request("com"), pipeline_cipo=True))
             self.add_csr("com", use_loc_if_exists=True)
             self.add_interrupt("com", use_loc_if_exists=True)
             # slow down clock period of SPI to 20MHz (50ns period), this gives us about a 4ns margin for setup for PVT variation
@@ -1570,7 +1571,7 @@ class BetrustedSoC(SoCCore):
         self.add_interrupt("i2c", use_loc_if_exists=True)
 
         # Event generation for I2C and COM ---------------------------------------------------------
-        self.submodules.btevents = BtEvents(platform.request("com_irq", 0), platform.request("rtc_irq", 0))
+        self.submodules.btevents = ClockDomainsRenamer({"sys":"sys_always_on"})(BtEvents(platform.request("com_irq", 0), platform.request("rtc_irq", 0)))
         self.add_csr("btevents", use_loc_if_exists=True)
         self.add_interrupt("btevents", use_loc_if_exists=True)
 
@@ -1626,8 +1627,11 @@ class BetrustedSoC(SoCCore):
             cipo_instance_name="CIPO_FDRE"
             spiread=False
             spipads = platform.request("spiflash_8x")
-            self.submodules.spinor = S7SPIOPI(spipads,
-                    sclk_name=sclk_instance_name, iddr_name=iddr_instance_name, cipo_name=cipo_instance_name, spiread=spiread)
+            self.submodules.spinor = ClockDomainsRenamer({"sys":"sys_always_on"})(
+                S7SPIOPI(spipads,
+                    sclk_name=sclk_instance_name, iddr_name=iddr_instance_name,
+                    cipo_name=cipo_instance_name, spiread=spiread)
+            )
             self.spinor.add_timing_constraints(platform, "spiflash_8x")
             self.specials += MultiReg(warm_reset, self.spinor.gsr)
             self.comb += self.spinor.keyclearb.eq(~self.power.power.fields.selfdestruct),
@@ -1692,7 +1696,7 @@ class BetrustedSoC(SoCCore):
 
         else:
             # Ring Oscillator TRNG ---------------------------------------------------------------------
-            self.submodules.trng_osc = TrngRingOscV2(platform)
+            self.submodules.trng_osc = ClockDomainsRenamer({"sys":"sys_always_on"})(TrngRingOscV2(platform))
             self.add_csr("trng_osc", use_loc_if_exists=True)
             # MEMO: diagnostic option, need to turn off GPIO
             # gpio_pads = platform.request("gpio")
@@ -1738,11 +1742,11 @@ class BetrustedSoC(SoCCore):
         self.bus.add_slave("engine", self.engine.bus, SoCRegion(origin=self.mem_map["engine"], size=0x2_0000, cached=False))
 
         # JTAG self-provisioning block -------------------------------------------------------------
-        self.submodules.jtag = jtag_phy.BtJtag(platform.request("jtag"))
+        self.submodules.jtag = ClockDomainsRenamer({"sys":"sys_always_on"})(jtag_phy.BtJtag(platform.request("jtag")))
         self.add_csr("jtag", use_loc_if_exists=True)
 
         # Watchdog Timer ---------------------------------------------------------------------------
-        self.submodules.wdt = WDT(platform)
+        self.submodules.wdt = ClockDomainsRenamer({"sys":"sys_always_on"})(WDT(platform))
         self.add_csr("wdt", use_loc_if_exists=True)
         self.comb += [
             # the STARTUPE2 block is in the SPINOR module, have to reach in and monkey patch these signals...
@@ -1999,7 +2003,7 @@ class BetrustedSoC(SoCCore):
 
         # Performance counter ------------------------------------------------------------------------
         if use_perfcounter:
-            self.submodules.perfcounter = perfcounter.PerfCounter(self)
+            self.submodules.perfcounter = ClockDomainsRenamer({"sys":"sys_always_on"})(perfcounter.PerfCounter(self))
             self.add_csr("perfcounter", use_loc_if_exists=True)
 
         self.platform.add_platform_command("set_clock_uncertainty 0.7 [get_clocks spidqs]")
