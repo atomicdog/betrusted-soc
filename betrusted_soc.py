@@ -107,7 +107,7 @@ _io_pvt = [   # PVT-generation I/Os
     ("i2c", 0,
         Subsignal("scl", Pins("G2"), IOStandard("LVCMOS33")), # DVT
         Subsignal("sda", Pins("F2"), IOStandard("LVCMOS33")), # DVT
-        Misc("SLEW=SLOW"), Misc("DRIVE=8"), Misc("PULLUP True")
+        Misc("SLEW=SLOW"), Misc("DRIVE=4"),
     ),
 
     # RTC interrupt
