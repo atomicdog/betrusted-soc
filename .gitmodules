@@ -31,9 +31,6 @@
 	path = deps/valentyusb
 	url = https://github.com/betrusted-io/valentyusb.git
 	branch = burst-support
-[submodule "deps/pythondata-cpu-vexriscv"]
-	path = deps/pythondata-cpu-vexriscv
-	url = https://github.com/betrusted-io/pythondata-cpu-vexriscv.git
 [submodule "deps/compiler_rt"]
 	path = deps/compiler_rt
 	url = https://github.com/litex-hub/pythondata-software-compiler_rt.git
@@ -49,3 +46,11 @@
 [submodule "deps/pythondata-software-picolibc"]
 	path = deps/pythondata-software-picolibc
 	url = https://github.com/litex-hub/pythondata-software-picolibc
+[submodule "deps/SpinalHDL"]
+	path = deps/SpinalHDL
+	url = https://github.com/SpinalHDL/SpinalHDL.git
+	branch = dev
+[submodule "deps/VexRiscv"]
+	path = deps/VexRiscv
+	url = https://github.com/SpinalHDL/VexRiscv.git
+	branch = dev
