@@ -42,3 +42,16 @@ keystore.bin
 xous/xous.img
 xous/xous-stage1.bin
 xous/xous-kernel.bin
+
+# Spinal build directories
+VexRiscv/project/
+VexRiscv/target/
+VexRiscv/.bloop/
+VexRiscv/.bsp/
+VexRiscv/.idea/
+VexRiscv/.metals/
+VexRiscv/.vscode/
+
+.metals/
+.env
+.vscode/
