@@ -1273,7 +1273,7 @@ class BetrustedSoC(SoCCore):
             self.irq.locs['app_uart'] = 4
 
         # CPU --------------------------------------------------------------------------------------
-        self.cpu.use_external_variant("deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv_BetrustedSoC.v")
+        self.cpu.use_external_variant("VexRiscv/VexRiscv_BetrustedSoC.v")
         self.submodules.reboot = WarmBoot(self, reset_address)
         self.add_csr("reboot", use_loc_if_exists=True)
         warm_reset = Signal()
