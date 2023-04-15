@@ -1392,7 +1392,7 @@ class BetrustedSoC(SoCCore):
             if app_uart:
                 self.submodules.app_uart = ResetInserter()(
                     ClockDomainsRenamer({"sys":"sys_always_on"})(uart.UART(app_phy_model,
-                        tx_fifo_depth=32, rx_fifo_depth=32)
+                        tx_fifo_depth=16, rx_fifo_depth=16)
                     ))
                 self.add_csr("app_uart", use_loc_if_exists=True)
                 self.add_interrupt("app_uart", use_loc_if_exists=True)
