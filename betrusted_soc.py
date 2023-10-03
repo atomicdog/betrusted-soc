@@ -1691,6 +1691,8 @@ class BetrustedSoC(SoCCore):
             self.submodules.trng = ClockDomainsRenamer({"sys":"sys_always_on", "clk50":"clk50_always_on"})(
                 TrngManaged(platform, analog_pads, platform.request("noise"), server=self.trng_server, kernel=self.trng_kernel, revision=revision, ro_cores=4))
             self.add_csr("trng", use_loc_if_exists=True)
+            # Required for Vivado 2023 and later
+            self.platform.add_platform_command('set_property ALLOW_COMBINATORIAL_LOOPS TRUE [get_nets RINGOSC_*]')
 
         else:
             # Ring Oscillator TRNG ---------------------------------------------------------------------
