@@ -190,11 +190,11 @@ def check_make(args):
     return check_cmd(args, "make", "GNU Make")
 
 def check_riscv(args):
-    riscv64 = check_cmd(args, "riscv64-unknown-elf-gcc", "riscv toolchain", "download it from https://www.sifive.com/boards/")
+    riscv64 = check_cmd(args, "riscv-none-elf-gcc", "riscv toolchain", "download it from https://www.sifive.com/boards/")
     if riscv64[0] == True:
         return riscv64
 
-    riscv32 = check_cmd(args, "riscv32-unknown-elf-gcc", "riscv toolchain", "download it from https://www.sifive.com/boards/")
+    riscv32 = check_cmd(args, "riscv-none-elf-gcc", "riscv toolchain", "download it from https://www.sifive.com/boards/")
     if riscv32[0] == True:
         return riscv32
 
